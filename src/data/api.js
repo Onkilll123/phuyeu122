@@ -56,7 +56,49 @@ async function apiFetch(url, options = {}) {
     
     // Fallback logic for N1 API when server is down
     if (url.includes(N1_BASE)) {
-      if (url.includes('/course-info')) {
+        if (url.includes('/courses') && !url.includes('/course-info')) {
+          let storedCourses = JSON.parse(localStorage.getItem('mockCourses') || 'null')
+          if (!storedCourses) {
+            storedCourses = courses.map(c => ({
+              id: c.id,
+              name: c.name,
+              level: c.level || 'Sơ cấp',
+              sessions: c.sessions || 12,
+              fee: c.fee || 1000000,
+              description: c.description || 'Khóa học tiêu chuẩn'
+            }))
+            localStorage.setItem('mockCourses', JSON.stringify(storedCourses))
+          }
+
+          if (options.method === 'POST') {
+            const body = JSON.parse(options.body)
+            const newCourse = { ...body, id: body.id || Date.now() }
+            storedCourses.push(newCourse)
+            localStorage.setItem('mockCourses', JSON.stringify(storedCourses))
+            return { data: newCourse }
+          }
+
+          if (options.method === 'PUT') {
+            const id = url.split('/').pop()
+            const index = storedCourses.findIndex(c => c.id == id)
+            if (index > -1) {
+              storedCourses[index] = { ...storedCourses[index], ...JSON.parse(options.body) }
+              localStorage.setItem('mockCourses', JSON.stringify(storedCourses))
+              return { data: storedCourses[index] }
+            }
+          }
+
+          if (options.method === 'DELETE') {
+            const id = url.split('/').pop()
+            storedCourses = storedCourses.filter(c => c.id != id)
+            localStorage.setItem('mockCourses', JSON.stringify(storedCourses))
+            return { data: { success: true } }
+          }
+
+          return { data: storedCourses }
+        }
+
+        if (url.includes('/course-info')) {
         // Create a mock list combining classes and schedules
         const mockInfo = courses.map(c => {
           const parts = c.time ? c.time.split(/[-–]/).map(t => t.trim()) : ['07:30', '09:00']
