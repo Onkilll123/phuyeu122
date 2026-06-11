@@ -13,9 +13,12 @@ const filterStatus = ref('')
 async function load() {
   loading.value = true; error.value = ''
   try {
-    const [dList, top, summary] = await Promise.all([
+    const [dListRes, topRes, summaryRes] = await Promise.all([
       N3.getDebts(), N3.getTopDebtors(), N3.getDebtSummary()
     ])
+    const dList = dListRes?.data || dListRes
+    const top = topRes?.data || topRes
+    const summary = summaryRes?.data || summaryRes
     debts.value = Array.isArray(dList) ? dList : []
     topDebtors.value = Array.isArray(top) ? top : []
     debtSummary.value = summary

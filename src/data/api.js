@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CENTRALIZED API SERVICE — N2 (Student) + N3 (Finance/Payment)
 // ─────────────────────────────────────────────────────────────────────────────
-import { courses } from './mockData.js'
+import { courses, students, registrations, attendanceToday, scoresAdmin, leaveRequests, notifications } from './mockData.js'
 
 // ── Base URLs ──
 export const N1_BASE = 'http://180.93.36.113:8081/api' // N1: Courses & Classes
@@ -28,7 +28,12 @@ async function apiFetch(url, options = {}) {
     ...options.headers,
   }
   try {
-    const res = await fetch(url, { ...options, headers })
+    const controller = new AbortController()
+    const id = setTimeout(() => controller.abort(), 1500)
+    
+    const res = await fetch(url, { ...options, headers, signal: controller.signal })
+    clearTimeout(id)
+    
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({ message: res.statusText }))
       throw new Error(errBody?.message || `HTTP ${res.status}`)
@@ -51,20 +56,37 @@ async function apiFetch(url, options = {}) {
     
     // Fallback logic for N1 API when server is down
     if (url.includes(N1_BASE)) {
-      if (url.includes('/courses')) {
-        // Map courses mock data format to N1 API expected format
-        const mockCourses = courses.map(c => ({
-          id: c.id, name: c.name, title: c.name, category: c.level, 
-          tuitionFee: c.fee, totalLessons: c.weeks, status: 'Đang mở'
-        }))
-        return { data: mockCourses }
+      if (url.includes('/course-info')) {
+        // Create a mock list combining classes and schedules
+        const mockInfo = courses.map(c => {
+          const parts = c.time ? c.time.split(/[-–]/).map(t => t.trim()) : ['07:30', '09:00']
+          return {
+            classCode: c.code,
+            courseName: c.name,
+            room: c.room || 1,
+            dayOfWeek: 2, // Monday
+            startTime: parts[0] || '07:30',
+            endTime: parts[1] || '09:00',
+            session: 'MORNING'
+          }
+        })
+        // duplicate to multiple days to make schedule look full
+        const duplicate = mockInfo.map(i => ({ ...i, dayOfWeek: 4 })) // Wed
+        return { data: [...mockInfo, ...duplicate] }
       }
       if (url.includes('/classes')) {
-        const mockClasses = courses.map(c => ({
-          id: c.id, courseId: c.id, classCode: c.code, teacherId: c.teacher,
-          roomId: c.room, maxStudents: c.maxStudents, startDate: '2025-05-10', status: 'OPENED',
-          startTime: c.time.split(' – ')[0], endTime: c.time.split(' – ')[1]
-        }))
+        const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}')
+        const now = new Date()
+        const startMonth = String(now.getMonth() + 1).padStart(2, '0') // current month
+        const mockClasses = courses.map((c, index) => {
+          const parts = c.time ? c.time.split(/[-–]/).map(t => t.trim()) : ['07:30', '09:00']
+          return {
+            id: c.id, courseId: c.id, classCode: c.code, 
+            teacherId: index % 2 === 0 ? (currentUser.id || currentUser.name || c.teacher) : c.teacher,
+            roomId: c.room, maxStudents: c.maxStudents, startDate: `${now.getFullYear()}-${startMonth}-01`, status: 'OPENED',
+            startTime: parts[0] || '07:30', endTime: parts[1] || '09:00'
+          }
+        })
         return { data: mockClasses }
       }
       if (url.includes('/rooms')) {
@@ -73,12 +95,124 @@ async function apiFetch(url, options = {}) {
           { roomId: 3, roomName: 'Lab 1' }, { roomId: 4, roomName: 'Lab 2' }
         ] }
       }
-      if (url.includes('/schedule')) {
-        const mockSchedules = courses.map(c => ({
-          id: c.id, classId: c.id, dayOfWeek: 2, sessionOfDay: 'MORNING', 
-          startTime: c.time.split(' – ')[0], endTime: c.time.split(' – ')[1]
-        }))
-        return { data: mockSchedules }
+      if (url.includes('/schedules')) {
+        const mockSchedules = courses.map(c => {
+          const parts = c.time ? c.time.split(/[-–]/).map(t => t.trim()) : ['07:30', '09:00']
+          return {
+            id: c.id, classId: c.id, classCode: c.code, courseName: c.name, dayOfWeek: 2, sessionOfDay: 'MORNING', 
+            startTime: parts[0] || '07:30', endTime: parts[1] || '09:00'
+          }
+        })
+        // add Wednesday duplicates
+        const duplicate = mockSchedules.map(s => ({ ...s, dayOfWeek: 4, id: s.id + 100 }))
+        return { data: [...mockSchedules, ...duplicate] }
+      }
+    }
+    
+    // Fallback logic for N2 API when server is down
+    if (url.includes(N2_BASE)) {
+      if (url.includes('/students')) {
+        return { data: students.map(s => ({...s, id: s.id, courseId: 1, enrollDate: '01/01/2026', attendance: 100, feeStatus: 'Đã hoàn thành', status: 'Đang học'})) }
+      }
+      if (url.includes('/registrations')) {
+        let storedRegs = JSON.parse(localStorage.getItem('mockRegistrations') || 'null')
+        if (!storedRegs) { storedRegs = registrations; localStorage.setItem('mockRegistrations', JSON.stringify(storedRegs)) }
+
+        if (options.method === 'POST') {
+          const body = JSON.parse(options.body)
+          const newReg = { ...body, id: Date.now(), status: 'Chờ duyệt', registerDate: new Date().toLocaleDateString('vi-VN'), studentName: 'Nguyễn Văn An', studentCode: 'HV-0312', phone: '0901234567' }
+          storedRegs.unshift(newReg)
+          localStorage.setItem('mockRegistrations', JSON.stringify(storedRegs))
+          return { data: newReg }
+        }
+
+        if (options.method === 'PUT') {
+          const id = url.split('/').slice(-2)[0]
+          const isApprove = url.endsWith('/approve')
+          const reqIndex = storedRegs.findIndex(r => r.id == id)
+          if (reqIndex > -1) {
+            storedRegs[reqIndex].status = isApprove ? 'Đã duyệt' : 'Đã hủy'
+            localStorage.setItem('mockRegistrations', JSON.stringify(storedRegs))
+            
+            // Notification injection
+            let storedNots = JSON.parse(localStorage.getItem('mockNotifications') || 'null')
+            if (!storedNots) storedNots = notifications || []
+            storedNots.unshift({
+                text: `Đơn đăng ký khóa học ${storedRegs[reqIndex].course} đã ${isApprove ? 'được duyệt' : 'bị từ chối'}`,
+                from: 'Hệ thống · Vừa xong',
+                type: 'system'
+            })
+            localStorage.setItem('mockNotifications', JSON.stringify(storedNots))
+
+            return { data: storedRegs[reqIndex] }
+          }
+        }
+        
+        return { data: storedRegs }
+      }
+      if (url.includes('/attendance')) {
+        return { data: attendanceToday }
+      }
+      if (url.includes('/scores')) {
+        return { data: scoresAdmin }
+      }
+      if (url.includes('/leave-requests')) {
+        let stored = JSON.parse(localStorage.getItem('mockLeaveRequests') || 'null')
+        if (!stored) {
+          stored = leaveRequests // Initial mock data
+          localStorage.setItem('mockLeaveRequests', JSON.stringify(stored))
+        }
+
+        if (options.method === 'POST') {
+          const body = JSON.parse(options.body)
+          const newReq = { ...body, id: Date.now(), status: 'Chờ duyệt', dateSubmitted: new Date().toLocaleDateString('vi-VN'), studentName: 'Nguyễn Văn An', code: 'HV-0312', class: 'Lập trình Java Web & Spring Boot' }
+          stored.unshift(newReq)
+          localStorage.setItem('mockLeaveRequests', JSON.stringify(stored))
+          return { data: newReq }
+        }
+        
+        if (options.method === 'PUT') {
+          const id = url.split('/').slice(-2)[0]
+          const isApprove = url.endsWith('/approve')
+          const reqIndex = stored.findIndex(r => r.id == id)
+          if (reqIndex > -1) {
+            stored[reqIndex].status = isApprove ? 'Đã duyệt' : 'Từ chối'
+            if (!isApprove && options.body) {
+                stored[reqIndex].reply = JSON.parse(options.body).reason || 'Không hợp lệ'
+            }
+            localStorage.setItem('mockLeaveRequests', JSON.stringify(stored))
+            
+            // Notification injection
+            let storedNots = JSON.parse(localStorage.getItem('mockNotifications') || 'null')
+            if (!storedNots) storedNots = notifications || []
+            storedNots.unshift({
+                text: `Đơn xin nghỉ ngày ${stored[reqIndex].date} đã ${isApprove ? 'được duyệt' : 'bị từ chối'}`,
+                from: 'Hệ thống · Vừa xong',
+                type: 'system'
+            })
+            localStorage.setItem('mockNotifications', JSON.stringify(storedNots))
+
+            return { data: stored[reqIndex] }
+          }
+        }
+        
+        if (options.method === 'DELETE') {
+          const id = url.split('/').pop()
+          stored = stored.filter(r => r.id != id)
+          localStorage.setItem('mockLeaveRequests', JSON.stringify(stored))
+          return { data: { success: true } }
+        }
+
+        return { data: stored }
+      }
+      
+      if (url.includes('/notifications')) {
+        let storedNots = JSON.parse(localStorage.getItem('mockNotifications') || 'null')
+        if (!storedNots) {
+          storedNots = notifications // Initial mock data
+          localStorage.setItem('mockNotifications', JSON.stringify(storedNots))
+        }
+        return { data: storedNots }
       }
     }
     
@@ -98,6 +232,11 @@ export const N1 = {
   updateCourse: (id, data)    => apiFetch(`${N1_BASE}/courses/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCourse: (id)          => apiFetch(`${N1_BASE}/courses/${id}`, { method: 'DELETE' }),
 
+  getCourseInfo: ()           => apiFetch(`${N1_BASE}/course-info`),
+
+  // ── Rooms (Phòng học) ──
+  getRooms: ()                => apiFetch(`${N1_BASE}/rooms`),
+
   // ── Classes (Lớp học) ──
   getClasses: ()              => apiFetch(`${N1_BASE}/classes`),
   getClass: (id)              => apiFetch(`${N1_BASE}/classes/${id}`),
@@ -114,13 +253,37 @@ export const N1 = {
   getTeacher: (id)            => apiFetch(`${N1_BASE}/teachers/${id}`),
 
   // ── Schedule (Lịch học) ──
-  getSchedule: ()             => apiFetch(`${N1_BASE}/schedule`),
-  getScheduleByClass: (cid)   => apiFetch(`${N1_BASE}/schedule?classId=${cid}`),
-  getScheduleByTeacher: (tid) => apiFetch(`${N1_BASE}/schedule?teacherId=${tid}`),
-  getScheduleByStudent: (sid) => apiFetch(`${N1_BASE}/schedule?studentId=${sid}`),
-  createSchedule: (data)      => apiFetch(`${N1_BASE}/schedule`, { method: 'POST', body: JSON.stringify(data) }),
-  updateSchedule: (id, data)  => apiFetch(`${N1_BASE}/schedule/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteSchedule: (id)        => apiFetch(`${N1_BASE}/schedule/${id}`, { method: 'DELETE' }),
+  getSchedules: ()            => apiFetch(`${N1_BASE}/schedules`),
+  getSchedule: ()             => apiFetch(`${N1_BASE}/schedules`),
+  getScheduleByClass: (cid)   => apiFetch(`${N1_BASE}/schedules?classId=${cid}`),
+  getScheduleByTeacher: (tid) => apiFetch(`${N1_BASE}/schedules?teacherId=${tid}`),
+  getScheduleByStudent: (sid) => apiFetch(`${N1_BASE}/schedules?studentId=${sid}`),
+  createSchedule: (data)      => apiFetch(`${N1_BASE}/schedules`, { method: 'POST', body: JSON.stringify(data) }),
+  updateSchedule: (id, data)  => apiFetch(`${N1_BASE}/schedules/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSchedule: (id)        => apiFetch(`${N1_BASE}/schedules/${id}`, { method: 'DELETE' }),
+
+  // ── Reschedule Requests (Mock) ──
+  getRescheduleRequests: async () => {
+    const requests = JSON.parse(localStorage.getItem('rescheduleRequests') || '[]')
+    return { data: requests }
+  },
+  createRescheduleRequest: async (data) => {
+    const requests = JSON.parse(localStorage.getItem('rescheduleRequests') || '[]')
+    const newRequest = { ...data, id: Date.now().toString(), status: 'PENDING', createdAt: new Date().toISOString() }
+    requests.push(newRequest)
+    localStorage.setItem('rescheduleRequests', JSON.stringify(requests))
+    return { data: newRequest }
+  },
+  updateRescheduleRequestStatus: async (id, status) => {
+    const requests = JSON.parse(localStorage.getItem('rescheduleRequests') || '[]')
+    const index = requests.findIndex(r => r.id === id)
+    if (index !== -1) {
+      requests[index].status = status
+      localStorage.setItem('rescheduleRequests', JSON.stringify(requests))
+      return { data: requests[index] }
+    }
+    throw new Error('Request not found')
+  },
 
   // ── Curriculum (Giáo trình) ──
   getCurriculum: (courseId)   => apiFetch(`${N1_BASE}/curriculum?courseId=${courseId}`),
@@ -148,6 +311,7 @@ export const N2 = {
   getAttendance: (classId, date) => apiFetch(`${N2_BASE}/attendance?classId=${classId}&date=${date}`),
   saveAttendance: (data)         => apiFetch(`${N2_BASE}/attendance`, { method: 'POST', body: JSON.stringify(data) }),
   getAttendanceStats: (studentId)=> apiFetch(`${N2_BASE}/attendance/stats/${studentId}`),
+  getNotifications: ()           => apiFetch(`${N2_BASE}/notifications`),
 
   // ── Scores / Grades ──
   getScores: (classId)           => apiFetch(`${N2_BASE}/scores?classId=${classId}`),
@@ -158,12 +322,9 @@ export const N2 = {
   getLeaveRequests: ()           => apiFetch(`${N2_BASE}/leave-requests`),
   createLeaveRequest: (data)     => apiFetch(`${N2_BASE}/leave-requests`, { method: 'POST', body: JSON.stringify(data) }),
   approveLeave: (id)             => apiFetch(`${N2_BASE}/leave-requests/${id}/approve`, { method: 'PUT' }),
-  rejectLeave: (id)              => apiFetch(`${N2_BASE}/leave-requests/${id}/reject`, { method: 'PUT' }),
+  rejectLeave: (id, data)        => apiFetch(`${N2_BASE}/leave-requests/${id}/reject`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteLeaveRequest: (id)       => apiFetch(`${N2_BASE}/leave-requests/${id}`, { method: 'DELETE' }),
 
-  // ── Courses ──
-  getCourses: ()                 => apiFetch(`${N2_BASE}/courses`),
-  getCourse: (id)                => apiFetch(`${N2_BASE}/courses/${id}`),
-  createCourse: (data)           => apiFetch(`${N2_BASE}/courses`, { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -174,39 +335,37 @@ export const N3 = {
   // ── Auth ──
   login: (credentials) => apiFetch(`${N3_BASE}/auth/login`, { method: 'POST', body: JSON.stringify(credentials) }),
 
-  // ── Invoices (Hóa đơn học phí / Phiếu thu) ──
-  getInvoices: ()         => apiFetch(`${N3_BASE}/tuition`),
-  getInvoice: (id)        => apiFetch(`${N3_BASE}/tuition/${id}`),
-  createInvoice: (data)   => apiFetch(`${N3_BASE}/tuition`, { method: 'POST', body: JSON.stringify(data) }),
-  updateInvoice: (id, data) => apiFetch(`${N3_BASE}/tuition/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteInvoice: (id)     => apiFetch(`${N3_BASE}/tuition/${id}`, { method: 'DELETE' }),
+  // ── Invoices (Hóa đơn học phí) ──
+  getInvoices: ()         => apiFetch(`${N3_BASE}/invoices`),
+  getInvoice: (id)        => apiFetch(`${N3_BASE}/invoices/${id}`),
+  createInvoice: (data)   => apiFetch(`${N3_BASE}/invoices`, { method: 'POST', body: JSON.stringify(data) }),
+  updateInvoice: (id, data) => apiFetch(`${N3_BASE}/invoices/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteInvoice: (id)     => apiFetch(`${N3_BASE}/invoices/${id}`, { method: 'DELETE' }),
 
-  // ── Payments / Receipts (Biên lai thanh toán) ──
-  // GET  /api/payment/payments  — list payments
-  getPayments: ()         => apiFetch(`${N3_BASE}/payment/payments`),
-  getPayment: (id)        => apiFetch(`${N3_BASE}/payment/payments/${id}`),
-  // POST /api/payment/payments  — Admin/Staff: record a payment against an invoice
+  // ── Payments (Giao dịch) ──
+  getPayments: ()         => apiFetch(`${N3_BASE}/payments`),
+  getPayment: (id)        => apiFetch(`${N3_BASE}/payments/${id}`),
   recordPayment: (data)   => apiFetch(`${N3_BASE}/payment/payments`, { method: 'POST', body: JSON.stringify(data) }),
 
-  // ── Receipts (Phiếu thu chi tiết) ──
+  // ── Receipts (Biên lai) ──
   getReceipts: ()         => apiFetch(`${N3_BASE}/receipts`),
   getReceipt: (id)        => apiFetch(`${N3_BASE}/receipts/${id}`),
 
   // ── Debts (Công nợ) ──
-  getDebts: ()            => apiFetch(`${N3_BASE}/debt`),
-  getDebt: (id)           => apiFetch(`${N3_BASE}/debt/${id}`),
+  getDebts: ()            => apiFetch(`${N3_BASE}/debts`),
+  getDebt: (id)           => apiFetch(`${N3_BASE}/debts/${id}`),
   checkStudentPaymentStatus: (studentCode, params = {}) => {
     const qs = new URLSearchParams(params).toString()
-    return apiFetch(`${N3_BASE}/debt/status/${studentCode}${qs ? '?' + qs : ''}`)
+    return apiFetch(`${N3_BASE}/debts/status/${studentCode}${qs ? '?' + qs : ''}`)
   },
 
-  // ── Reports (Báo cáo doanh thu) ──
-  getDashboardStats: ()    => apiFetch(`${N3_BASE}/revenue`),
-  getRevenueByCourse: ()   => apiFetch(`${N3_BASE}/revenue/by-course`),
-  getRevenueByMonth: ()    => apiFetch(`${N3_BASE}/revenue/by-month`),
-  getDebtSummary: ()       => apiFetch(`${N3_BASE}/debt/summary`),
-  getTopDebtors: ()        => apiFetch(`${N3_BASE}/debt/top-debtors`),
-  getPaymentStatusStats: ()=> apiFetch(`${N3_BASE}/tuition/status-stats`),
+  // ── Reports ──
+  getDashboardStats: ()    => apiFetch(`${N3_BASE}/reports/dashboard`),
+  getRevenueByCourse: ()   => apiFetch(`${N3_BASE}/reports/revenue-by-course`),
+  getRevenueByMonth: ()    => apiFetch(`${N3_BASE}/reports/revenue-by-month`),
+  getDebtSummary: ()       => apiFetch(`${N3_BASE}/reports/debt-summary`),
+  getTopDebtors: ()        => apiFetch(`${N3_BASE}/reports/top-debtors`),
+  getPaymentStatusStats: ()=> apiFetch(`${N3_BASE}/reports/payment-status`),
 }
 
 // ── Utility: format VND ──

@@ -1,19 +1,28 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { scoresAdmin, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { scoresAdmin } from '../../data/mockData.js'
+import { N1 as api } from '../../data/api.js'
 
 const tab = ref('midterm')
-const selectedClass = ref('Tiếng Anh B1 — Lớp A')
+const selectedClass = ref('Lập trình Java Web & Spring Boot')
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) {}
+})
 const saved = ref(false)
-const scores = ref(scoresAdmin.map(s => ({...s, midWriting:s.writing, midListening:s.listening, midSpeaking:s.speaking, midAvg:s.average, finalWriting:8, finalListening:7.5, finalSpeaking:8.5, finalAvg:8.0})))
+const scores = ref(scoresAdmin.map(s => ({...s, midTheory:s.writing, midPractical:s.listening, midProject:s.speaking, midAvg:s.average, finalTheory:8, finalPractical:7.5, finalProject:8.5, finalAvg:8.0})))
 
 function calcAvg(s) {
   if (tab.value === 'midterm') {
-    const arr = [parseFloat(s.midWriting||0), parseFloat(s.midListening||0), parseFloat(s.midSpeaking||0)]
+    const arr = [parseFloat(s.midTheory||0), parseFloat(s.midPractical||0), parseFloat(s.midProject||0)]
     s.midAvg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length * 10) / 10
     s.average = s.midAvg
   } else {
-    const arr = [parseFloat(s.finalWriting||0), parseFloat(s.finalListening||0), parseFloat(s.finalSpeaking||0)]
+    const arr = [parseFloat(s.finalTheory||0), parseFloat(s.finalPractical||0), parseFloat(s.finalProject||0)]
     s.finalAvg = Math.round(arr.reduce((a,b)=>a+b,0)/arr.length * 10) / 10
     s.average = Math.round((s.midAvg * 0.4 + s.finalAvg * 0.6) * 10) / 10
   }
@@ -23,6 +32,30 @@ function calcAvg(s) {
 }
 
 function saveScores() { saved.value = true; setTimeout(() => saved.value = false, 3000) }
+
+function exportToExcel() {
+  if (scores.value.length === 0) return alert('Không có dữ liệu để xuất!')
+  let headers = []
+  let rows = []
+  if (tab.value === 'midterm') {
+    headers = ['Mã HV', 'Tên học viên', 'Lý thuyết', 'Thực hành', 'Dự án', 'Trung bình', 'Xếp loại']
+    rows = scores.value.map(s => [s.code, s.name, s.midTheory, s.midPractical, s.midProject, s.midAvg, s.grade])
+  } else if (tab.value === 'final') {
+    headers = ['Mã HV', 'Tên học viên', 'Lý thuyết (CK)', 'Thực hành (CK)', 'Dự án (CK)', 'ĐTB CK', 'Tổng kết', 'Xếp loại']
+    rows = scores.value.map(s => [s.code, s.name, s.finalTheory, s.finalPractical, s.finalProject, s.finalAvg, s.average, s.grade])
+  } else {
+    headers = ['Mã HV', 'Tên học viên', 'ĐTB Giữa kỳ', 'ĐTB Cuối kỳ', 'Tổng kết', 'Xếp loại', 'Kết quả']
+    rows = scores.value.map(s => [s.code, s.name, s.midAvg, s.finalAvg, s.average, s.grade, s.average>=5?'Đạt':'Học lại'])
+  }
+  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join("\n")
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement("a")
+  link.setAttribute("href", encodedUri)
+  link.setAttribute("download", `bang_diem_${tab.value}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 const gradeClass = g => g==='Xuất sắc'?'grade-xs':g==='Giỏi'?'grade-g':g==='Khá'?'grade-k':g==='Trung bình'?'grade-tb':'grade-y'
 const avgColor = v => v>=8?'text-green':v>=6.5?'text-blue':v>=5?'text-orange':'text-red'
@@ -52,7 +85,7 @@ const summary = computed(() => ({
           <option v-for="c in courses" :key="c.id" :value="c.name">{{ c.name }}</option>
         </select>
       </div>
-      <button class="btn-secondary btn-icon-text">
+      <button class="btn-secondary btn-icon-text" @click="exportToExcel">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         Xuất bảng điểm
       </button>
@@ -98,16 +131,16 @@ const summary = computed(() => ({
         <div v-if="tab==='midterm'" key="midterm" class="table-responsive">
           <div class="info-bar mb-4">
             <span class="info-icon">💡</span>
-            <span>Điểm giữa kỳ được tính bằng trung bình cộng 3 kỹ năng: <strong>Viết, Nghe, Nói</strong>. Hệ thống sẽ tự động xếp loại.</span>
+            <span>Điểm giữa kỳ được tính bằng trung bình cộng 3 kỹ năng: <strong>Lý thuyết, Thực hành, Dự án</strong>. Hệ thống sẽ tự động xếp loại.</span>
           </div>
           <table class="premium-table">
             <thead>
               <tr>
                 <th width="50">#</th>
                 <th>HỌC VIÊN</th>
-                <th class="text-center" width="120">VIẾT (0-10)</th>
-                <th class="text-center" width="120">NGHE (0-10)</th>
-                <th class="text-center" width="120">NÓI (0-10)</th>
+                <th class="text-center" width="120">LÝ THUYẾT (0-10)</th>
+                <th class="text-center" width="120">THỰC HÀNH (0-10)</th>
+                <th class="text-center" width="120">DỰ ÁN (0-10)</th>
                 <th class="text-center" width="120">TRUNG BÌNH</th>
                 <th width="140">XẾP LOẠI</th>
               </tr>
@@ -124,9 +157,9 @@ const summary = computed(() => ({
                     </div>
                   </div>
                 </td>
-                <td class="text-center"><input class="input-score" v-model.number="s.midWriting" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
-                <td class="text-center"><input class="input-score" v-model.number="s.midListening" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
-                <td class="text-center"><input class="input-score" v-model.number="s.midSpeaking" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.midTheory" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.midPractical" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.midProject" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
                 <td class="text-center">
                   <span class="avg-score" :class="avgColor(s.midAvg)">{{ s.midAvg }}</span>
                 </td>
@@ -147,9 +180,9 @@ const summary = computed(() => ({
               <tr>
                 <th width="50">#</th>
                 <th>HỌC VIÊN</th>
-                <th class="text-center" width="120">VIẾT (0-10)</th>
-                <th class="text-center" width="120">NGHE (0-10)</th>
-                <th class="text-center" width="120">NÓI (0-10)</th>
+                <th class="text-center" width="120">LÝ THUYẾT (0-10)</th>
+                <th class="text-center" width="120">THỰC HÀNH (0-10)</th>
+                <th class="text-center" width="120">DỰ ÁN (0-10)</th>
                 <th class="text-center highlight-col" width="120">ĐTB CK</th>
                 <th class="text-center highlight-col-main" width="120">TỔNG KẾT</th>
                 <th width="140">XẾP LOẠI</th>
@@ -167,9 +200,9 @@ const summary = computed(() => ({
                     </div>
                   </div>
                 </td>
-                <td class="text-center"><input class="input-score" v-model.number="s.finalWriting" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
-                <td class="text-center"><input class="input-score" v-model.number="s.finalListening" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
-                <td class="text-center"><input class="input-score" v-model.number="s.finalSpeaking" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.finalTheory" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.finalPractical" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
+                <td class="text-center"><input class="input-score" v-model.number="s.finalProject" @input="calcAvg(s)" min="0" max="10" step="0.5" /></td>
                 <td class="text-center highlight-col">
                   <span class="avg-score-sm">{{ s.finalAvg }}</span>
                 </td>

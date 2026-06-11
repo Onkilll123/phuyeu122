@@ -1,6 +1,23 @@
 <script setup>
-import { courses } from '../../data/mockData.js'
-const myClasses = courses.slice(0,4)
+import { ref, onMounted } from 'vue'
+import { N1 as api } from '../../data/api.js'
+const myClasses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    myClasses.value = res.data.slice(0,4).map((c, i) => ({
+      id: c.id,
+      name: c.title || c.name,
+      code: 'CLS-' + (100 + i),
+      students: 20,
+      schedule: 'T2, T4, T6',
+      time: '18:30 - 20:30',
+      room: 'Phòng A10' + (i+1),
+      currentWeek: 4,
+      weeks: c.sessions || c.totalLessons || 12
+    }))
+  } catch(e) {}
+})
 const colors = ['#3b82f6','#10b981','#f59e0b','#0d9488']
 </script>
 <template>

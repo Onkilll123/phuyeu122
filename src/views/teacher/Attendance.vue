@@ -1,9 +1,18 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { teacherAttendanceList, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { teacherAttendanceList } from '../../data/mockData.js'
+import { N1 as api } from '../../data/api.js'
 
-const selectedClass = ref('TOEIC 600+')
+const selectedClass = ref('Cấu trúc dữ liệu & Giải thuật')
 const attendanceDate = ref(new Date().toISOString().split('T')[0])
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) {}
+})
 const sessionNum = ref(12)
 const totalSessions = ref(36)
 

@@ -1,9 +1,18 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { attendanceToday, attendanceStats, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { attendanceToday, attendanceStats } from '../../data/mockData.js'
+import { N1 as api } from '../../data/api.js'
 
-const selectedClass = ref('Tiếng Anh B1 — Lớp A')
+const selectedClass = ref('Lập trình Java Web & Spring Boot')
 // Add dynamic date and session selection
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) {}
+})
 const attendanceDate = ref(new Date().toISOString().split('T')[0])
 const sessionNum = ref(24)
 const totalSessions = ref(48)

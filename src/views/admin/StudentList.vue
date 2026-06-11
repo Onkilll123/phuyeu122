@@ -1,12 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { students, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { N1 as api, N2 as apiN2 } from '../../data/api.js'
 
 // ── State ──
-const list = ref(students.map(s => ({...s,
-  dob:'01/01/2000', gender:'Nam', email:`${s.code.toLowerCase()}@email.com`,
-  address:'Hà Nội', completedCourses:[], note:''
-})))
+const list = ref([])
 const search = ref('')
 const filterStatus = ref('')
 const filterCourse = ref('')
@@ -24,6 +21,39 @@ const filtered = computed(() => list.value.filter(s => {
   const matchCourse = !filterCourse.value || s.course === filterCourse.value
   return matchQ && matchStatus && matchCourse
 }))
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) { console.error(e) }
+
+  try {
+    const resStu = await apiN2.getStudents()
+    list.value = resStu.data.map(s => ({
+      ...s,
+      dob: s.dob || '01/01/2000', gender: s.gender || 'Nam', email: s.email || `${s.code.toLowerCase()}@email.com`,
+      address: s.address || 'Hà Nội', completedCourses:[], note:''
+    }))
+  } catch(e) { console.error(e) }
+})
+
+function exportToExcel() {
+  if (filtered.value.length === 0) return alert('Không có dữ liệu để xuất!')
+  const headers = ['Mã HV', 'Tên học viên', 'Khóa học', 'Ngày nhập học', 'Điểm danh', 'Học phí', 'Trạng thái']
+  const rows = filtered.value.map(s => [
+    s.code, s.name, s.course, s.enrollDate, s.attendance+'%', s.feeStatus, s.status
+  ])
+  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join("\n")
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement("a")
+  link.setAttribute("href", encodedUri)
+  link.setAttribute("download", "danh_sach_hoc_vien.csv")
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 const stats = computed(() => ({
   total: list.value.length,
@@ -260,7 +290,7 @@ function deleteStudent(s) {
       <p class="page-desc">Theo dõi và quản lý thông tin {{ stats.total }} học viên tại trung tâm</p>
     </div>
     <div class="header-actions">
-      <button class="btn-secondary btn-icon-text">
+      <button class="btn-secondary btn-icon-text" @click="exportToExcel">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         Xuất Excel
       </button>

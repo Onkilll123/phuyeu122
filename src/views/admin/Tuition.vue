@@ -18,7 +18,8 @@ const payForm = ref({ amount:'', paymentMethod:'Cash', transactionReference:'', 
 async function loadInvoices() {
   loading.value = true; error.value = ''
   try {
-    const data = await N3.getInvoices()
+    const res = await N3.getInvoices()
+    const data = res?.data || res
     invoices.value = Array.isArray(data) ? data : []
   } catch (e) {
     error.value = e.message

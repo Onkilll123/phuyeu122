@@ -123,7 +123,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import api from '../../services/api'
+import { N1 as api } from '../../data/api'
 import { useNotification } from '../composables/useNotification'
 
 const { notifications, unreadCount, addNotification, fetchNotifications, deleteNotification, clearAllNotifications, getNotiIcon, getNotiIconClass } = useNotification()

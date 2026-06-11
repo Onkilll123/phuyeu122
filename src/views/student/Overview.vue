@@ -1,9 +1,18 @@
 <script setup>
-import { ref } from 'vue'
-import { studentScheduleWeek, notifications, scoresTeacher } from '../../data/mockData.js'
+import { ref, onMounted } from 'vue'
+import { studentScheduleWeek, scoresTeacher } from '../../data/mockData.js'
+import { N2 as api } from '../../data/api.js'
 
 // My scores - lấy học viên Nguyễn Văn An (HV-0312)
 const myScore = ref(scoresTeacher[0])
+const notifications = ref([])
+
+onMounted(async () => {
+  try {
+    const res = await api.getNotifications()
+    notifications.value = res.data
+  } catch(e) { console.error(e) }
+})
 
 const notifIcon = t => t==='exam'?'📢':t==='system'?'🔔':'📖'
 const notifColor = t => t==='exam'?'#eff6ff':t==='system'?'#ecfdf5':'#fefce8'
@@ -28,7 +37,7 @@ const gradeClass = g => g==='Giỏi'?'badge-green':g==='Khá'?'badge-blue':g==='
         <h1 class="student-name">Nguyễn Văn An</h1>
         <div class="student-meta">
           <span class="meta-item">🔖 HV-0312</span>
-          <span class="meta-item">📘 TOEIC 600+</span>
+          <span class="meta-item">📘 Lập trình Java Web & Spring Boot</span>
           <span class="meta-item">📅 Lớp Thứ 3,5,7</span>
         </div>
         <div class="graduation-pill">
@@ -91,7 +100,7 @@ const gradeClass = g => g==='Giỏi'?'badge-green':g==='Khá'?'badge-blue':g==='
         </div>
         
         <div class="skills-chart">
-          <div v-for="(item,i) in [{label:'Listening',val:myScore.listening,color:'#3b82f6'},{label:'Reading',val:myScore.reading,color:'#10b981'},{label:'Writing',val:myScore.writing,color:'#8b5cf6'},{label:'Speaking',val:myScore.speaking,color:'#f59e0b'}]" :key="i" class="skill-row">
+          <div v-for="(item,i) in [{label:'Chuyên cần',val:myScore.theory,color:'#3b82f6'},{label:'Bài tập',val:myScore.assignment,color:'#10b981'},{label:'Thực hành',val:myScore.practical,color:'#8b5cf6'},{label:'Dự án',val:myScore.project,color:'#f59e0b'}]" :key="i" class="skill-row">
             <div class="skill-header">
               <span class="skill-label">{{ item.label }}</span>
               <span class="skill-score" :style="{color:item.color}">{{ item.val }} <span class="max-score">/ 10</span></span>

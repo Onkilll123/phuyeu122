@@ -1,29 +1,70 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { N2 as api } from '../../data/api.js'
 
-const requests = ref([
-  { id: 1, date: '10/06/2025', reason: 'Ốm, sốt cao', status: 'Chờ duyệt', dateSubmitted: '08/06/2025', reply: '' },
-  { id: 2, date: '25/05/2025', reason: 'Bận lịch thi đại học', status: 'Đã duyệt', dateSubmitted: '20/05/2025', reply: '' }
-])
+const requests = ref([])
+
+onMounted(async () => {
+  await loadRequests()
+})
+
+async function loadRequests() {
+  try {
+    const res = await api.getLeaveRequests()
+    // student only sees their own requests
+    requests.value = res.data.filter(r => r.code === 'HV-0312')
+  } catch (e) { console.error(e) }
+}
+
+const usedQuota = computed(() => requests.value.filter(r => r.status === 'Đã duyệt').length);
+const remainingQuota = computed(() => {
+  const maxQuota = 3;
+  return Math.max(0, maxQuota - usedQuota.value);
+});
 
 const showModal = ref(false)
 const form = ref({ date: '', reason: '' })
 
-function submitRequest() {
+async function submitRequest() {
   if (!form.value.date || !form.value.reason) { alert('Vui lòng nhập đủ thông tin!'); return }
-  requests.value.unshift({
-    id: Date.now(),
-    date: new Date(form.value.date).toLocaleDateString('vi-VN'),
-    reason: form.value.reason,
-    status: 'Chờ duyệt',
-    dateSubmitted: new Date().toLocaleDateString('vi-VN'),
-    reply: ''
-  })
-  showModal.value = false
-  form.value = { date: '', reason: '' }
+  try {
+    const dateFormatted = new Date(form.value.date).toLocaleDateString('vi-VN')
+    
+    // Optimistic UI update
+    const newReq = {
+      id: Date.now(),
+      date: dateFormatted,
+      reason: form.value.reason,
+      status: 'Chờ duyệt',
+      dateSubmitted: new Date().toLocaleDateString('vi-VN'),
+      reply: ''
+    }
+    requests.value.unshift(newReq)
+    showModal.value = false
+    
+    api.createLeaveRequest({
+      date: dateFormatted,
+      reason: form.value.reason
+    }).then(() => loadRequests()) // Background sync
+    
+    form.value = { date: '', reason: '' }
+  } catch (e) {
+    alert('Lỗi khi gửi yêu cầu')
+  }
 }
 
 const statusClass = s => s==='Đã duyệt'?'status-approved':s==='Từ chối'?'status-rejected':'status-pending'
+
+async function deleteRequest(id) {
+  if (!confirm('Bạn có chắc chắn muốn xóa đơn xin nghỉ này?')) return
+  try {
+    // Optimistic UI update
+    requests.value = requests.value.filter(r => r.id !== id)
+    api.deleteLeaveRequest(id).catch(() => loadRequests())
+  } catch (e) {
+    alert('Lỗi khi xóa đơn')
+  }
+}
 </script>
 
 <template>
@@ -69,7 +110,9 @@ const statusClass = s => s==='Đã duyệt'?'status-approved':s==='Từ chối'?
     </div>
     <div class="header-actions">
       <div class="leave-quota">
-        Còn lại: <span class="quota-val">2/3</span> buổi
+        <span class="quota-item">Đã nghỉ: <span class="quota-val used">{{ usedQuota }}</span> buổi</span>
+        <span class="quota-divider">|</span>
+        <span class="quota-item">Còn lại: <span class="quota-val">{{ remainingQuota }}/3</span> buổi</span>
       </div>
       <button class="btn-primary btn-icon-text" @click="showModal=true">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -100,9 +143,15 @@ const statusClass = s => s==='Đã duyệt'?'status-approved':s==='Từ chối'?
             </div>
           </div>
           
-          <div class="status-badge" :class="statusClass(r.status)">
-            <span class="status-dot"></span>
-            {{ r.status }}
+          <div class="request-actions-status">
+            <div class="status-badge" :class="statusClass(r.status)">
+              <span class="status-dot"></span>
+              {{ r.status }}
+            </div>
+            <button v-if="r.status === 'Chờ duyệt'" class="btn-delete-request" @click="deleteRequest(r.id)" title="Xóa đơn này">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+              Xóa đơn
+            </button>
           </div>
         </div>
       </transition-group>
@@ -128,8 +177,11 @@ const statusClass = s => s==='Đã duyệt'?'status-approved':s==='Từ chối'?
 
 .header-actions { display: flex; gap: 16px; align-items: center; }
 
-.leave-quota { background: #f1f5f9; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; color: #475569; }
-.quota-val { font-weight: 800; color: #0f766e; font-size: 16px; }
+.leave-quota { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 16px; border-radius: 12px; font-size: 14px; font-weight: 500; color: #166534; display: flex; align-items: center; gap: 12px; }
+.quota-item { display: flex; align-items: center; gap: 4px; }
+.quota-val { font-weight: 800; color: #059669; font-size: 16px; }
+.quota-val.used { color: #dc2626; }
+.quota-divider { color: #86efac; }
 
 .btn-icon-text { display: flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 10px; font-weight: 600; font-size: 14px; transition: all 0.2s; cursor: pointer; border: none; }
 .btn-primary { background: #0d9488; color: white; box-shadow: 0 4px 6px -1px rgba(13, 148, 136, 0.2); }
@@ -170,6 +222,10 @@ const statusClass = s => s==='Đã duyệt'?'status-approved':s==='Từ chối'?
 .status-pending .status-dot { background: #f97316; }
 .status-rejected { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .status-rejected .status-dot { background: #ef4444; }
+
+.request-actions-status { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.btn-delete-request { background: white; border: 1px solid #fecaca; color: #ef4444; cursor: pointer; padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.btn-delete-request:hover { background: #fef2f2; border-color: #ef4444; }
 
 /* Empty State */
 .empty-state { padding: 60px 20px; text-align: center; }

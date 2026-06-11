@@ -335,7 +335,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import api from '../../services/api'
+import { N1 as api } from '../../data/api'
 import { useNotification } from '../composables/useNotification'
 
 const { addNotification } = useNotification()
@@ -522,19 +522,17 @@ const fetchData = async () => {
     
     rescheduleRequests.value = resReq.data || []
 
-    // Xây dựng timetable trực tiếp từ schedules và classes để đảm bảo dữ liệu luôn mới nhất,
-    // thay vì phụ thuộc vào course-info (có thể bị cache hoặc trễ)
     const localTimetable = resSch.data.map(s => {
       const cls = resClasses.data.find(c => c.id === s.classId)
       const course = cls ? resCourses.data.find(c => c.id === cls.courseId) : null
       return {
         id: s.id,
         classId: s.classId,
-        courseName: course ? (course.title || course.name) : 'Không rõ',
-        classCode: cls ? cls.classCode : 'N/A',
-        room: cls ? cls.roomId : null,
+        courseName: course ? (course.title || course.name) : (s.courseName || 'Không rõ'),
+        classCode: cls ? cls.classCode : (s.classCode || 'N/A'),
+        room: cls ? cls.roomId : (s.room || null),
         dayOfWeek: s.dayOfWeek,
-        session: s.sessionOfDay,
+        session: s.sessionOfDay || s.session,
         startTime: s.startTime,
         endTime: s.endTime
       }

@@ -8,7 +8,7 @@ const endpoints = ref([
   { service:'N1', method:'GET', url:`${N1_BASE}/courses`,       label:'GET /courses',         status:'idle', latency:null, data:null, error:null },
   { service:'N1', method:'GET', url:`${N1_BASE}/classes`,       label:'GET /classes',         status:'idle', latency:null, data:null, error:null },
   { service:'N1', method:'GET', url:`${N1_BASE}/teachers`,      label:'GET /teachers',        status:'idle', latency:null, data:null, error:null },
-  { service:'N1', method:'GET', url:`${N1_BASE}/schedule`,      label:'GET /schedule',        status:'idle', latency:null, data:null, error:null },
+  { service:'N1', method:'GET', url:`${N1_BASE}/schedules`,      label:'GET /schedules',        status:'idle', latency:null, data:null, error:null },
   { service:'N1', method:'GET', url:`${N1_BASE}/curriculum`,    label:'GET /curriculum',      status:'idle', latency:null, data:null, error:null },
   // ──────── N2 ────────
   { service:'N2', method:'GET', url:`${N2_BASE}/students`,      label:'GET /students',        status:'idle', latency:null, data:null, error:null },
@@ -16,7 +16,6 @@ const endpoints = ref([
   { service:'N2', method:'GET', url:`${N2_BASE}/attendance`,    label:'GET /attendance',      status:'idle', latency:null, data:null, error:null },
   { service:'N2', method:'GET', url:`${N2_BASE}/scores`,        label:'GET /scores',          status:'idle', latency:null, data:null, error:null },
   { service:'N2', method:'GET', url:`${N2_BASE}/leave-requests`,label:'GET /leave-requests',  status:'idle', latency:null, data:null, error:null },
-  { service:'N2', method:'GET', url:`${N2_BASE}/courses`,       label:'GET /courses (N2)',    status:'idle', latency:null, data:null, error:null },
   // ──────── N3 ────────
   { service:'N3', method:'GET', url:`${N3_BASE}/payment/invoices`,  label:'GET /payment/invoices',  status:'idle', latency:null, data:null, error:null },
   { service:'N3', method:'GET', url:`${N3_BASE}/payment/payments`,  label:'GET /payment/payments',  status:'idle', latency:null, data:null, error:null },

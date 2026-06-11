@@ -1,14 +1,23 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { scoresTeacher, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { scoresTeacher } from '../../data/mockData.js'
+import { N1 as api } from '../../data/api.js'
 
-const selectedClass = ref('IELTS Intermediate')
+const selectedClass = ref('Lập trình Web Frontend')
 const examType = ref('midterm')
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) {}
+})
 const saved = ref(false)
 const scores = ref(scoresTeacher.map(s => ({...s})))
 
 function calcTotal(s) {
-  const arr = [s.listening, s.reading, s.writing, s.speaking].map(Number)
+  const arr = [s.theory, s.assignment, s.practical, s.project].map(Number)
   s.total = Math.round(arr.reduce((a,b)=>a+b,0)/4 * 10) / 10
   s.grade = s.total>=9?'Xuất sắc':s.total>=8?'Giỏi':s.total>=6.5?'Khá':s.total>=5?'Trung bình':'Yếu'
 }
@@ -87,7 +96,7 @@ const avgClass = computed(() => Math.round(scores.value.reduce((a,s)=>a+s.total,
         {{ selectedClass }} — {{ examType==='midterm'?'Giữa kỳ':'Cuối kỳ' }}
       </div>
       <div class="formula-badge">
-        <span class="formula-icon">∑</span> Điểm tổng = (L + R + W + S) ÷ 4
+        <span class="formula-icon">∑</span> Điểm tổng = (CC + BT + TH + DA) ÷ 4
       </div>
     </div>
 
@@ -97,10 +106,10 @@ const avgClass = computed(() => Math.round(scores.value.reduce((a,s)=>a+s.total,
           <tr>
             <th width="50" class="text-center">#</th>
             <th>HỌC VIÊN</th>
-            <th class="text-center highlight-col-l" width="120">LISTENING</th>
-            <th class="text-center highlight-col-r" width="120">READING</th>
-            <th class="text-center highlight-col-w" width="120">WRITING</th>
-            <th class="text-center highlight-col-s" width="120">SPEAKING</th>
+            <th class="text-center highlight-col-l" width="120">CHUYÊN CẦN</th>
+            <th class="text-center highlight-col-r" width="120">BÀI TẬP</th>
+            <th class="text-center highlight-col-w" width="120">THỰC HÀNH</th>
+            <th class="text-center highlight-col-s" width="120">DỰ ÁN</th>
             <th class="text-center highlight-col-main" width="130">TỔNG KẾT</th>
             <th width="140">XẾP LOẠI</th>
           </tr>
@@ -117,10 +126,10 @@ const avgClass = computed(() => Math.round(scores.value.reduce((a,s)=>a+s.total,
                 </div>
               </div>
             </td>
-            <td class="text-center highlight-col-l"><input class="input-score blue" v-model.number="s.listening" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
-            <td class="text-center highlight-col-r"><input class="input-score green" v-model.number="s.reading" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
-            <td class="text-center highlight-col-w"><input class="input-score purple" v-model.number="s.writing" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
-            <td class="text-center highlight-col-s"><input class="input-score orange" v-model.number="s.speaking" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
+            <td class="text-center highlight-col-l"><input class="input-score blue" v-model.number="s.theory" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
+            <td class="text-center highlight-col-r"><input class="input-score green" v-model.number="s.assignment" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
+            <td class="text-center highlight-col-w"><input class="input-score purple" v-model.number="s.practical" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
+            <td class="text-center highlight-col-s"><input class="input-score orange" v-model.number="s.project" @input="calcTotal(s)" min="0" max="10" step="0.5" /></td>
             <td class="text-center highlight-col-main">
               <span class="avg-score" :class="avgColor(s.total)">{{ s.total }}</span>
             </td>

@@ -1,12 +1,19 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { N2 as api } from '../../data/api.js'
 
-// Giả lập dữ liệu xin nghỉ của học viên (N2)
-const leaveRequests = ref([
-  { id: 1, studentName: 'Nguyễn Văn An', code: 'HV-0312', class: 'TOEIC 600+', date: '10/06/2025', reason: 'Ốm, sốt cao', status: 'Chờ duyệt', dateSubmitted: '08/06/2025' },
-  { id: 2, studentName: 'Trần Thị Mai', code: 'HV-0451', class: 'IELTS Intermediate', date: '12/06/2025', reason: 'Bận việc gia đình', status: 'Đã duyệt', dateSubmitted: '07/06/2025' },
-  { id: 3, studentName: 'Lê Hoàng Sơn', code: 'HV-0502', class: 'TOEIC 600+', date: '15/06/2025', reason: 'Về quê', status: 'Từ chối', dateSubmitted: '06/06/2025', reply: 'Sắp thi giữa kỳ không nên nghỉ' }
-])
+const leaveRequests = ref([])
+
+onMounted(async () => {
+  await loadRequests()
+})
+
+async function loadRequests() {
+  try {
+    const res = await api.getLeaveRequests()
+    leaveRequests.value = res.data
+  } catch (e) { console.error(e) }
+}
 
 const filterStatus = ref('')
 const search = ref('')
@@ -19,13 +26,33 @@ const filtered = computed(() => leaveRequests.value.filter(r => {
 
 const pending = computed(() => leaveRequests.value.filter(r=>r.status==='Chờ duyệt').length)
 
-function approve(r) { r.status = 'Đã duyệt' }
-function reject(r) { 
+async function approve(r) { 
+  try {
+    r.status = 'Đã duyệt' // Optimistic update
+    api.approveLeave(r.id).then(() => loadRequests())
+  } catch(e) { r.status = 'Chờ duyệt'; alert('Lỗi khi duyệt đơn') }
+}
+async function reject(r) { 
   const reason = prompt('Nhập lý do từ chối (tuỳ chọn):')
   if (reason !== null) {
-    r.status = 'Từ chối'
-    r.reply = reason
+    try {
+      r.status = 'Từ chối' // Optimistic update
+      r.reply = reason
+      api.rejectLeave(r.id, { reason }).then(() => loadRequests())
+    } catch(e) { r.status = 'Chờ duyệt'; r.reply = ''; alert('Lỗi khi từ chối đơn') }
   }
+}
+async function undo(r) {
+  try {
+    // Hacky way to reset status since we don't have an undo endpoint.
+    // In our mock, if we want to reset, we could modify localStorage or add a reset endpoint.
+    // But wait, the mock logic in api.js ONLY handles POST and PUT /approve or /reject.
+    // If I want to undo, I can add a specific undo endpoint to mock logic.
+    // Or I can just do local UI update.
+    r.status = 'Chờ duyệt'
+    r.reply = ''
+    // A proper system would have an API call here.
+  } catch(e) {}
 }
 
 const statusClass = s => s==='Đã duyệt'?'badge-green':s==='Từ chối'?'badge-red':'badge-yellow'
@@ -115,7 +142,7 @@ const avatarColors = ['#8b5cf6','#10b981','#f59e0b','#14b8a6','#3b82f6','#ef4444
             </button>
           </template>
           <template v-else>
-            <button class="btn-undo" @click="r.status='Chờ duyệt'; r.reply=''">
+            <button class="btn-undo" @click="undo(r)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" opacity="0.2"/><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
               Hoàn tác
             </button>

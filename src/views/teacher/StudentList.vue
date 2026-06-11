@@ -1,8 +1,17 @@
 <script setup>
-import { ref, computed } from 'vue'
-import { teacherAttendanceList, courses } from '../../data/mockData.js'
+import { ref, computed, onMounted } from 'vue'
+import { teacherAttendanceList } from '../../data/mockData.js'
+import { N1 as api } from '../../data/api.js'
 
-const selectedClass = ref('TOEIC 600+')
+const selectedClass = ref('Cấu trúc dữ liệu & Giải thuật')
+
+const courses = ref([])
+onMounted(async () => {
+  try {
+    const res = await api.getCourses()
+    courses.value = res.data.map(c => ({ id: c.id, name: c.title || c.name }))
+  } catch (e) {}
+})
 const list = ref(teacherAttendanceList.map(s => ({
   ...s,
   attendance: Math.floor(Math.random() * 30) + 70, // 70-100
@@ -15,6 +24,22 @@ const search = ref('')
 const filtered = computed(() => list.value.filter(s => 
   !search.value || s.name.toLowerCase().includes(search.value.toLowerCase()) || s.code.toLowerCase().includes(search.value.toLowerCase())
 ))
+
+function exportToExcel() {
+  if (filtered.value.length === 0) return alert('Không có dữ liệu để xuất!')
+  const headers = ['Mã HV', 'Tên học viên', 'Liên hệ', 'Chuyên cần', 'Điểm TB']
+  const rows = filtered.value.map(s => [
+    s.code, s.name, s.phone, s.attendance+'%', s.score
+  ])
+  const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(','), ...rows.map(e => e.join(','))].join("\n")
+  const encodedUri = encodeURI(csvContent)
+  const link = document.createElement("a")
+  link.setAttribute("href", encodedUri)
+  link.setAttribute("download", "danh_sach_lop.csv")
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
 
 const avatarColors = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#14b8a6','#ef4444']
 const attColor = v => v>=80?'#10b981':v>=70?'#f59e0b':'#ef4444'
@@ -36,7 +61,7 @@ const scoreBg = v => v>=8?'#eff6ff':v>=6.5?'#f0fdf4':v>=5?'#fff7ed':'#fef2f2'
           <option v-for="c in courses.slice(0,4)" :key="c.id" :value="c.name">{{ c.name }}</option>
         </select>
       </div>
-      <button class="btn-secondary btn-icon-text">
+      <button class="btn-secondary btn-icon-text" @click="exportToExcel">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         Xuất danh sách
       </button>

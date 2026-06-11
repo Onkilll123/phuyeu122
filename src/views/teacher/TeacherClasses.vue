@@ -305,7 +305,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import api from '../../services/api'
+import { N1 as api } from '../../data/api'
 const currentUser = ref(null)
 const allClasses = ref([])
 const courses = ref([])
