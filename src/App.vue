@@ -1,54 +1,89 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import NotificationBell from './views/composables/NotificationBell.vue'
+import Login from './views/Login.vue'
 
-// Pages - Admin
+// Pages - Admin (N1: CourseList, ClassList, Schedule, RoomList | N2: Students, Attendance, Scores | N3: Tuition, Debt, Revenue)
 import AdminDashboard from './views/admin/Dashboard.vue'
 import AdminCourseList from './views/admin/CourseList.vue'
 import AdminClassList from './views/admin/ClassList.vue'
 import AdminSchedule from './views/admin/Schedule.vue'
+import AdminRoomList from './views/admin/RoomList.vue'
 import AdminStudentList from './views/admin/StudentList.vue'
 import AdminRegistration from './views/admin/Registration.vue'
 import AdminAttendance from './views/admin/Attendance.vue'
 import AdminScores from './views/admin/Scores.vue'
 import AdminTuition from './views/admin/Tuition.vue'
 import AdminDebt from './views/admin/Debt.vue'
-// Pages - Teacher
+import AdminRevenue from './views/admin/Revenue.vue'
+import AdminAPIHealth from './views/admin/APIHealth.vue'
+// Pages - Teacher (N1: TeacherClasses, TeacherSchedule, TeacherCourses | N2: Attendance, Scores)
 import TeacherDashboard from './views/teacher/Dashboard.vue'
-import TeacherMyClasses from './views/teacher/MyClasses.vue'
+import TeacherClasses from './views/teacher/TeacherClasses.vue'
 import TeacherAttendance from './views/teacher/Attendance.vue'
 import TeacherScores from './views/teacher/Scores.vue'
-import TeacherSchedule from './views/teacher/Schedule.vue'
-import TeacherCurriculum from './views/teacher/Curriculum.vue'
+import TeacherSchedule from './views/teacher/TeacherSchedule.vue'
+import TeacherCurriculum from './views/teacher/TeacherCourses.vue'
 import TeacherLeave from './views/teacher/LeaveRequests.vue'
 import TeacherStudentList from './views/teacher/StudentList.vue'
-// Pages - Student
+// Pages - Student (N1: StudentSchedule, ClassInfo | N2: AttStats, Overview | N3: MyTuition)
 import StudentOverview from './views/student/Overview.vue'
 import StudentClassInfo from './views/student/ClassInfo.vue'
 import StudentAttStats from './views/student/AttendanceStats.vue'
 import StudentTeacher from './views/student/TeacherProfile.vue'
 import StudentCurriculum from './views/student/Curriculum.vue'
-import StudentSchedule from './views/student/Schedule.vue'
+import StudentSchedule from './views/student/StudentSchedule.vue'
 import StudentLeave from './views/student/LeaveRequest.vue'
 import StudentRules from './views/student/Rules.vue'
+import StudentRegistration from './views/student/CourseRegistration.vue'
+import StudentMyTuition from './views/student/MyTuition.vue'
 
-const role = ref('admin')
+const isAuthenticated = ref(false)
+const role = ref('')
+const authUsername = ref('')
 const page = ref('dashboard')
+
+onMounted(() => {
+  const savedRole = localStorage.getItem('auth_role')
+  if (savedRole) {
+    isAuthenticated.value = true
+    role.value = savedRole
+    authUsername.value = localStorage.getItem('auth_username') || ''
+    page.value = defaultPages[savedRole] || 'dashboard'
+  }
+})
 
 const pageMap = {
   admin: {
-    dashboard: AdminDashboard, courseList: AdminCourseList, classList: AdminClassList,
-    schedule: AdminSchedule, studentList: AdminStudentList, registration: AdminRegistration,
-    attendance: AdminAttendance, scores: AdminScores, tuition: AdminTuition, debt: AdminDebt
+    dashboard: AdminDashboard,
+    // N1: Khóa học & Lịch học
+    courseList: AdminCourseList, classList: AdminClassList,
+    schedule: AdminSchedule, roomList: AdminRoomList,
+    // N2: Học viên & Điểm danh
+    studentList: AdminStudentList, registration: AdminRegistration,
+    attendance: AdminAttendance, scores: AdminScores,
+    // N3: Tài chính
+    tuition: AdminTuition, debt: AdminDebt, revenue: AdminRevenue,
+    // Hệ thống
+    apiHealth: AdminAPIHealth
   },
   teacher: {
-    dashboard: TeacherDashboard, myClasses: TeacherMyClasses, attendance: TeacherAttendance,
-    scores: TeacherScores, schedule: TeacherSchedule, curriculum: TeacherCurriculum,
+    dashboard: TeacherDashboard,
+    // N1: Lớp học & Lịch
+    myClasses: TeacherClasses, schedule: TeacherSchedule, curriculum: TeacherCurriculum,
+    // N2: Điểm danh & Điểm
+    attendance: TeacherAttendance, scores: TeacherScores,
     leave: TeacherLeave, studentList: TeacherStudentList
   },
   student: {
-    overview: StudentOverview, classInfo: StudentClassInfo, attStats: StudentAttStats,
-    teacherProfile: StudentTeacher, curriculum: StudentCurriculum, schedule: StudentSchedule,
-    leave: StudentLeave, rules: StudentRules
+    overview: StudentOverview,
+    // N1: Thông tin lớp & Lịch
+    classInfo: StudentClassInfo, schedule: StudentSchedule, curriculum: StudentCurriculum,
+    // N2: Điểm danh & Giáo viên
+    attStats: StudentAttStats, teacherProfile: StudentTeacher,
+    leave: StudentLeave, rules: StudentRules,
+    // Đăng ký & Tài chính
+    registration: StudentRegistration, myTuition: StudentMyTuition
   }
 }
 
@@ -59,47 +94,59 @@ const currentPage = computed(() => {
 
 const adminMenu = [
   { group:'TỔNG QUAN', items:[{key:'dashboard',icon:'⊞',label:'Dashboard'}] },
-  { group:'KHÓA HỌC', items:[
-    {key:'courseList',icon:'☐',label:'Danh sách khóa học',badge:12},
-    {key:'classList',icon:'👥',label:'Lớp học'},
-    {key:'schedule',icon:'📅',label:'Lịch học'}
+  { group:'N1 · KHÓA HỌC & LỊCH', items:[
+    {key:'courseList',icon:'📘',label:'Danh sách khóa học'},
+    {key:'classList',icon:'🏫',label:'Lớp học'},
+    {key:'schedule',icon:'📅',label:'Lịch học'},
+    {key:'roomList',icon:'🚪',label:'Phòng học'}
   ]},
-  { group:'HỌC VIÊN', items:[
+  { group:'N2 · HỌC VIÊN', items:[
     {key:'studentList',icon:'👤',label:'Danh sách học viên'},
     {key:'registration',icon:'📝',label:'Đăng ký khóa học',badge:3},
     {key:'attendance',icon:'✓',label:'Điểm danh'},
     {key:'scores',icon:'📊',label:'Kết quả học tập'}
   ]},
-  { group:'TÀI CHÍNH', items:[
+  { group:'N3 · TÀI CHÍNH', items:[
     {key:'tuition',icon:'💳',label:'Thu học phí',badge:5},
     {key:'debt',icon:'⏰',label:'Công nợ'},
     {key:'revenue',icon:'📈',label:'Báo cáo doanh thu'}
+  ]},
+  { group:'HỆ THỐNG', items:[
+    {key:'apiHealth',icon:'🔬',label:'Kiểm tra API N1/N2/N3'}
   ]}
 ]
 
 const teacherMenu = [
   { group:'TỔNG QUAN', items:[{key:'dashboard',icon:'⊞',label:'Dashboard'}] },
-  { group:'', items:[{key:'myClasses',icon:'📚',label:'Lớp học của tôi',badge:4}] },
-  { group:'QUẢN LÝ LỚP', items:[
+  { group:'N1 · LỚP & LỊCH HỌC', items:[
+    {key:'myClasses',icon:'📚',label:'Lớp học của tôi'},
+    {key:'schedule',icon:'📅',label:'Thời khoá biểu'},
+    {key:'curriculum',icon:'📖',label:'Khóa học của tôi'}
+  ]},
+  { group:'N2 · QUẢN LÝ LỚP', items:[
     {key:'attendance',icon:'✓',label:'Điểm danh',tagText:'Hôm nay'},
     {key:'scores',icon:'⭐',label:'Nhập điểm'},
-    {key:'schedule',icon:'📅',label:'Thời khoá biểu'},
-    {key:'curriculum',icon:'📖',label:'Giáo trình'},
     {key:'leave',icon:'📋',label:'Đơn xin nghỉ',badge:2}
   ]},
   { group:'KHÁC', items:[{key:'studentList',icon:'👥',label:'Danh sách học viên'}] }
 ]
 
 const studentMenu = [
-  { group:'CỦA TÔI', items:[
+  { group:'N1 · THÔNG TIN LỚP & LỊCH', items:[
     {key:'overview',icon:'⊞',label:'Tổng quan'},
     {key:'classInfo',icon:'📚',label:'Thông tin lớp học'},
+    {key:'schedule',icon:'📅',label:'Thời khoá biểu'},
+    {key:'curriculum',icon:'📖',label:'Giáo trình'}
+  ]},
+  { group:'N2 · HỌC TẬP', items:[
     {key:'attStats',icon:'📊',label:'Thống kê điểm danh'},
     {key:'teacherProfile',icon:'👤',label:'Giáo viên lớp'},
-    {key:'curriculum',icon:'📖',label:'Giáo trình'},
-    {key:'schedule',icon:'📅',label:'Thời khoá biểu'},
     {key:'leave',icon:'✈',label:'Xin nghỉ phép'},
-    {key:'rules',icon:'📋',label:'Nội quy'}
+    {key:'rules',icon:'📋',label:'Nội quy'},
+    {key:'registration',icon:'🛒',label:'Đăng ký khóa học',badge:'New'}
+  ]},
+  { group:'N3 · TÀI CHÍNH', items:[
+    {key:'myTuition',icon:'💳',label:'Học phí của tôi'}
   ]}
 ]
 
@@ -107,9 +154,19 @@ const menus = { admin: adminMenu, teacher: teacherMenu, student: studentMenu }
 const currentMenu = computed(() => menus[role.value])
 const defaultPages = { admin:'dashboard', teacher:'dashboard', student:'overview' }
 
-function switchRole(r) {
+function onLoginSuccess(r) {
   role.value = r
+  isAuthenticated.value = true
   page.value = defaultPages[r]
+  authUsername.value = localStorage.getItem('auth_username') || ''
+}
+
+function logout() {
+  localStorage.removeItem('auth_role')
+  localStorage.removeItem('auth_username')
+  isAuthenticated.value = false
+  role.value = ''
+  authUsername.value = ''
 }
 
 const brandName = computed(() => role.value === 'admin' ? 'EduCore' : 'EduHub')
@@ -118,7 +175,8 @@ const accentClass = computed(() => `role-${role.value}`)
 </script>
 
 <template>
-<div class="app-layout" :class="accentClass">
+<Login v-if="!isAuthenticated" @login-success="onLoginSuccess" />
+<div v-else class="app-layout" :class="accentClass">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -145,11 +203,6 @@ const accentClass = computed(() => `role-${role.value}`)
     </nav>
 
     <div class="sidebar-footer">
-      <div class="role-switcher">
-        <button v-if="role !== 'admin'" class="switch-btn" @click="switchRole(role === 'teacher' ? 'student' : 'teacher')">
-          ↔ Chuyển sang {{ role === 'teacher' ? 'Học viên' : 'Giáo viên' }}
-        </button>
-      </div>
       <div class="user-info">
         <div class="user-avatar">{{ role === 'admin' ? 'AD' : role === 'teacher' ? 'T' : 'VA' }}</div>
         <div>
@@ -163,21 +216,23 @@ const accentClass = computed(() => `role-${role.value}`)
   <!-- MAIN -->
   <main class="main-content">
     <header class="topbar">
-      <div class="breadcrumb">{{ brandName }} / {{ currentMenu.flatMap(s=>s.items).find(i=>i.key===page)?.label || '' }}</div>
+      <div class="topbar-left">
+        <div class="breadcrumb-icon">{{ role === 'admin' ? '⊞' : role === 'teacher' ? '📚' : '🎓' }}</div>
+        <div class="breadcrumb-info">
+          <div class="breadcrumb-main">{{ currentMenu.flatMap(s=>s.items).find(i=>i.key===page)?.label || 'Dashboard' }}</div>
+          <div class="breadcrumb-sub">{{ brandName }}</div>
+        </div>
+      </div>
       <div class="topbar-right">
-        <div class="search-box"><span>🔍</span><input placeholder="Tìm kiếm..." /></div>
-        <button v-if="role==='student'" class="topbar-btn topbar-btn-leave">✈ Xin nghỉ</button>
-        <div class="notif-icon">🔔 <span class="notif-dot">(0)</span></div>
-        <!-- Role switcher for demo -->
-        <select class="role-select" :value="role" @change="switchRole($event.target.value)">
-          <option value="admin">Admin</option>
-          <option value="teacher">Giáo viên</option>
-          <option value="student">Học viên</option>
-        </select>
+        <button v-if="role==='student'" class="topbar-btn topbar-btn-leave" @click="page='leave'">✈ Xin nghỉ</button>
+        <!-- Real Notification Bell -->
+        <NotificationBell :role="role" />
+        <!-- Logout Button -->
+        <button class="topbar-btn btn-logout" @click="logout">Đăng xuất</button>
       </div>
     </header>
     <div class="page-content">
-      <component :is="currentPage" />
+      <component :is="currentPage" @navigate="p => page = p" />
     </div>
   </main>
 </div>
@@ -222,31 +277,32 @@ body{font-family:'Inter',sans-serif;background:#f8fafc;color:#334155}
 .role-admin .nav-tag{background:#fef3c7;color:#d97706}
 
 .sidebar-footer{border-top:1px solid #f1f5f9;padding:12px 16px}
-.role-switcher{margin-bottom:8px}
-.switch-btn{width:100%;border:1px solid #e2e8f0;background:#f8fafc;color:#64748b;padding:8px;border-radius:8px;font-size:12px;cursor:pointer;transition:.15s}
-.switch-btn:hover{background:#e2e8f0}
+.user-role{font-size:12px;color:#94a3b8;margin-top:2px;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-info{display:flex;align-items:center;gap:10px;padding:8px 0}
 .user-avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff}
 .role-admin .user-avatar{background:#2563eb}
 .role-teacher .user-avatar{background:#7c3aed}
 .role-student .user-avatar{background:#0d9488}
 .user-name{font-weight:600;font-size:13px;color:#0f172a}
-.user-role{font-size:11px;color:#94a3b8}
 
 /* TOPBAR */
 .main-content{margin-left:260px;flex:1;display:flex;flex-direction:column;min-height:100vh}
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 28px;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:50}
-.breadcrumb{font-size:14px;color:#94a3b8}
-.topbar-right{display:flex;align-items:center;gap:16px}
-.search-box{display:flex;align-items:center;gap:6px;background:#f1f5f9;padding:8px 14px;border-radius:8px;min-width:200px}
-.search-box input{border:none;background:none;outline:none;font-size:13px;color:#334155;width:100%}
-.topbar-btn-leave{background:#0d9488;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer}
-.notif-icon{font-size:16px;cursor:pointer;color:#64748b}
-.notif-dot{font-size:11px}
-.role-select{border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;font-size:12px;background:#fff;cursor:pointer;outline:none}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:10px 28px;background:#fff;border-bottom:1px solid #e2e8f0;position:sticky;top:0;z-index:50;gap:16px}
+.topbar-left{display:flex;align-items:center;gap:12px}
+.breadcrumb-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.role-admin .breadcrumb-icon{background:#eff6ff}
+.role-teacher .breadcrumb-icon{background:#f5f3ff}
+.role-student .breadcrumb-icon{background:#f0fdfa}
+.breadcrumb-main{font-size:15px;font-weight:700;color:#0f172a;line-height:1.2}
+.breadcrumb-sub{font-size:11px;color:#94a3b8;font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.topbar-btn-leave{background:#fee2e2;color:#b91c1c;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+.topbar-btn-leave:hover{background:#fecaca}
+.btn-logout{background:#f1f5f9;color:#64748b;font-weight:600;border:1px solid #e2e8f0;padding:8px 14px;border-radius:8px;cursor:pointer}
+.btn-logout:hover{background:#fee2e2;color:#ef4444;border-color:#fecaca}
 
 /* PAGE */
-.page-content{padding:24px 28px;flex:1}
+.page-content{padding:24px 32px;flex:1;overflow-y:auto;background:#f8fafc}
 
 /* SHARED */
 .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.04);margin-bottom:20px}
